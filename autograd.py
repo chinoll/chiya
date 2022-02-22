@@ -637,9 +637,3 @@ class Tensor:
 
     def zero_gard(self):
         self.grad = numpy.zeros(self.data.shape) if isinstance(self.data, numpy.ndarray) else 0
-a = Tensor(numpy.array([2,2,2]))
-b = Tensor(numpy.array([3,3,3]))
-print(a)
-c = 1*a
-c.backward()
-print(a)
