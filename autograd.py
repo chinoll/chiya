@@ -1,5 +1,3 @@
-import numpy
-
 import numpy as np
 
 #算子
@@ -510,7 +508,7 @@ class Tensor:
         if grad:
             self.grad = grad
         else:
-            self.grad = numpy.zeros(self.data.shape) if isinstance(self.data, numpy.ndarray) else 0
+            self.grad = np.zeros(self.data.shape) if isinstance(self.data, np.ndarray) else 0
     def __call__(self, *args, **kwds):
         return self.forward(*args, **kwds)
     def __repr__(self) -> str:
@@ -623,7 +621,7 @@ class Tensor:
         return MinOp().forward([self])
     def backward(self, grad=None):
         if grad is None:
-            self.grad = grad = numpy.ones(self.data.shape) if isinstance(self.data, numpy.ndarray) else 1
+            self.grad = grad = np.ones(self.data.shape) if isinstance(self.data, np.ndarray) else 1
         if self.op:
             grad = self.op.backward(self.tensors, grad)
         if self.tensors:
@@ -636,4 +634,4 @@ class Tensor:
                 tensor.backward(grad[i])
 
     def zero_gard(self):
-        self.grad = numpy.zeros(self.data.shape) if isinstance(self.data, numpy.ndarray) else 0
+        self.grad = np.zeros(self.data.shape) if isinstance(self.data, np.ndarray) else 0
