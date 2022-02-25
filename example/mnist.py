@@ -1,9 +1,4 @@
-import matplotlib
-# from autograd import Tensor
-# import nn
-# import utils
 import numpy as np
-# import dataset as td
 import matplotlib.pyplot as plt
 import tqdm
 import utils
