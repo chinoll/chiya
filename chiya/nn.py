@@ -1,6 +1,5 @@
 from .autograd import Tensor
 import numpy as np
-import traceback
 from typing import Iterator, Any
 import inspect
 

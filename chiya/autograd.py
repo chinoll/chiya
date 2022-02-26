@@ -57,9 +57,13 @@ class Tensor:
         """gets called if I do t + other"""
         return _add(self, _ensure_tensor(other))
 
+    # __raddr__ = __add__
     def __radd__(self, other) -> 'Tensor':
         """gets called if I do other + t"""
-        return _add(_ensure_tensor(other), self)
+        print("radd")
+        tensor = _add(_ensure_tensor(other), self)
+        print(tensor)
+        return tensor
 
     def __iadd__(self, other) -> 'Tensor':
         """when we do t += other"""
@@ -108,7 +112,8 @@ class Tensor:
         return _max(self,axis,keepdims)
     def maximum(self,other) -> 'Tensor':
         return _maximum(self,_ensure_tensor(other))
-
+    def sqrt(self):
+        return _sqrt(self)
     def backward(self, grad: 'Tensor' = None) -> None:
         assert self.requires_grad, "called backward on non-requires-grad tensor"
 
@@ -324,6 +329,28 @@ def _slice(t: Tensor, idxs) -> Tensor:
 
     return Tensor(data, requires_grad, depends_on)
 
+# def repeat_to_match_shape(g, shape, dtype, axis, keepdims):
+#     """Returns the array g repeated along axis to fit vector space vs.
+#        Also returns the number of repetitions of the array."""
+#     if shape == ():
+#       return g, 1
+#     axis = list(axis) if isinstance(axis, tuple) else axis
+#     new_shape = np.array(shape)
+#     new_shape[axis] = 1
+#     num_reps = np.prod(np.array(shape)[axis])
+#     # Can't use broadcast_to because of numpy bug: https://github.com/numpy/numpy/issues/9165
+#     # return anp.broadcast_to(anp.reshape(g, new_shape), shape), num_reps
+#     return np.reshape(g, new_shape) + np.zeros(shape, dtype=dtype), num_reps
+
+# def grad_chooser(ans, x, axis=None, keepdims=None):
+#     shape, dtype = np.shape(x), np.result_type(x)
+#     def vjp(g):
+#         """Builds gradient of functions that choose a single item, such as min or max."""
+#         g_repeated, _ = repeat_to_match_shape(g, shape, dtype, axis, keepdims)
+#         argmax_locations = x == repeat_to_match_shape(ans, shape, dtype, axis, keepdims)[0]
+#         return g_repeated * argmax_locations / np.sum(argmax_locations, axis=axis, keepdims=True)
+#     return vjp
+
 def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
     data = np.max(t.data, axis=axis, keepdims=keepdims)
     requires_grad = t.requires_grad
@@ -331,6 +358,7 @@ def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
 
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
+            # This implementation may be wrong, but it is useful and can speed up convergence.
             max_grad = np.zeros_like(t.data)
             bool_array = t.data == np.max(t.data,keepdims=True,axis=axis)
             max_grad[bool_array] = 1 / bool_array.sum()
@@ -340,6 +368,7 @@ def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
 
 def balanced_eq(x, y, z):
     return (x == z) / (1.0 + (x == y))
+
 def _maximum(t1: Tensor, t2: Tensor) -> Tensor:
     data = np.maximum(t1.data, t2.data)
     requires_grad = t1.requires_grad or (isinstance(t2, Tensor) and t2.requires_grad)
@@ -354,4 +383,14 @@ def _maximum(t1: Tensor, t2: Tensor) -> Tensor:
             return balanced_eq(data,t2.data, t1.data) * grad
         depends_on.append(Dependency(t2, grad_fn2))
 
+    return Tensor(data, requires_grad, depends_on)
+
+def _sqrt(t: Tensor) -> Tensor:
+    data = np.sqrt(t.data)
+    requires_grad = t.requires_grad
+    depends_on: List[Dependency] = []
+    if requires_grad:
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            return (grad*0.5)*(data**-0.5)
+        depends_on.append(Dependency(t, grad_fn))
     return Tensor(data, requires_grad, depends_on)

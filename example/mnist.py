@@ -21,10 +21,10 @@ def data_iter(x,y,batch_size=1):
         j = min(i+batch_size,m)
         yield x[idx[i:j]],y[idx[i:j]]
 
-def train(f,x,y,lr=0.1,epochs=500,batch_size=10000):
+def train(f,x,y,lr=0.001,epochs=500,batch_size=1000):
     loss_list = []
     loss_func = nn.cross_entropy()
-    optimizer = optim.SGD(lr)
+    optimizer = optim.Adam(lr)
     for _ in tqdm.tqdm(range(epochs)):
         for xi,yi in data_iter(x,y,batch_size):
             xi = xi.reshape(len(xi),-1).astype(np.float32)/255
@@ -40,7 +40,7 @@ def train(f,x,y,lr=0.1,epochs=500,batch_size=10000):
     return loss_list
 
 (train_x,train_y),(test_x,test_y) = td.gen_mnist_dataset()
-loss_list = train(f,train_x,train_y,lr=0.1,epochs=100)
+loss_list = train(f,train_x,train_y,lr=0.001,epochs=100)
 test_x = Tensor(test_x,requires_grad=False)
 print("acc",np.mean(np.argmax(f(test_x).data,axis=1)==test_y))
 
