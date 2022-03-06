@@ -145,9 +145,10 @@ class Conv2d(Module):
         self.padding = padding
         self.padding_mode = padding_mode
         self.kernel = Parameter(np.random.randn(out_channels, in_channels, kernel_size, kernel_size)*0.01,requires_grad=True)
-        # self.bias = Parameter(np.zeros((out_channels,1)),requires_grad=True)
+        self.bias = Parameter(np.zeros((1,out_channels,1,1)),requires_grad=True)
+
     def forward(self, x):
-        return _conv2d(x, self.kernel, self.stride, self.padding)
+        return _conv2d(x, self.kernel, self.stride, self.padding) + self.bias
 
 class flatten(Module):
     def forward(self, x):
