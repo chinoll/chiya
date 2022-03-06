@@ -1,2 +1,3 @@
 # 纯python实现的机器学习库
-example/mnist.py &nbsp;&nbsp; MNIST图像分类示例
+example/mnist_mlp.py &nbsp;&nbsp; MNIST图像分类示例(MLP)
+example/mnist_cnn.py &nbsp;&nbsp; MNIST图像分类示例(CNN)
