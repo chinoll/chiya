@@ -114,6 +114,15 @@ class Tensor:
         return _maximum(self,_ensure_tensor(other))
     def sqrt(self):
         return _sqrt(self)
+    def transpose(self,*axes):
+        return _transpose(self,*axes)
+    def copy(self) -> 'Tensor':
+        return Tensor(self.data.copy(), requires_grad=self.requires_grad)
+    def reshape(self,*shape):
+        return _reshape(self,*shape)
+    def flatten(self) -> 'Tensor':
+        return self.reshape(self.shape[0],-1)
+
     def backward(self, grad: 'Tensor' = None) -> None:
         assert self.requires_grad, "called backward on non-requires-grad tensor"
 
@@ -139,6 +148,7 @@ def tensor_sum(t: Tensor,axis=None,keepdims=False) -> Tensor:
     """
     data = t.data.sum(axis=axis,keepdims=keepdims)
     requires_grad = t.requires_grad
+    depends_on: List[Dependency] = []
 
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
@@ -148,11 +158,30 @@ def tensor_sum(t: Tensor,axis=None,keepdims=False) -> Tensor:
             """
             return grad * np.ones_like(t.data)
 
-        depends_on = [Dependency(t, grad_fn)]
+        depends_on.append(Dependency(t, grad_fn))
 
-    else:
-        depends_on = []
+    return Tensor(data,requires_grad,depends_on)
 
+def _reshape(t: Tensor,*shape):
+    raw_shape = t.data.shape
+    data = t.data.reshape(*shape)
+    requires_grad = t.requires_grad
+    depends_on: List[Dependency] = []
+    if requires_grad:
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            return grad.reshape(*raw_shape)
+        depends_on.append(Dependency(t, grad_fn))
+    return Tensor(data,requires_grad,depends_on)
+
+def _transpose(t: Tensor,*axes) -> Tensor:
+    data = t.data.transpose(*axes)
+    requires_grad = t.requires_grad
+    depends_on: List[Dependency] = []
+
+    if requires_grad:
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            return grad.transpose(*axes)
+        depends_on.append(Dependency(t, grad_fn))
     return Tensor(data,requires_grad,depends_on)
 
 def _add(t1: Tensor, t2: Tensor) -> Tensor:
@@ -329,27 +358,27 @@ def _slice(t: Tensor, idxs) -> Tensor:
 
     return Tensor(data, requires_grad, depends_on)
 
-# def repeat_to_match_shape(g, shape, dtype, axis, keepdims):
-#     """Returns the array g repeated along axis to fit vector space vs.
-#        Also returns the number of repetitions of the array."""
-#     if shape == ():
-#       return g, 1
-#     axis = list(axis) if isinstance(axis, tuple) else axis
-#     new_shape = np.array(shape)
-#     new_shape[axis] = 1
-#     num_reps = np.prod(np.array(shape)[axis])
-#     # Can't use broadcast_to because of numpy bug: https://github.com/numpy/numpy/issues/9165
-#     # return anp.broadcast_to(anp.reshape(g, new_shape), shape), num_reps
-#     return np.reshape(g, new_shape) + np.zeros(shape, dtype=dtype), num_reps
+def repeat_to_match_shape(g, shape, dtype, axis, keepdims):
+    """Returns the array g repeated along axis to fit vector space vs.
+       Also returns the number of repetitions of the array."""
+    if shape == ():
+      return g, 1
+    axis = list(axis) if isinstance(axis, tuple) else axis
+    new_shape = np.array(shape)
+    new_shape[axis] = 1
+    num_reps = np.prod(np.array(shape)[axis])
+    # Can't use broadcast_to because of numpy bug: https://github.com/numpy/numpy/issues/9165
+    # return anp.broadcast_to(anp.reshape(g, new_shape), shape), num_reps
+    return np.reshape(g, new_shape) + np.zeros(shape, dtype=dtype), num_reps
 
-# def grad_chooser(ans, x, axis=None, keepdims=None):
-#     shape, dtype = np.shape(x), np.result_type(x)
-#     def vjp(g):
-#         """Builds gradient of functions that choose a single item, such as min or max."""
-#         g_repeated, _ = repeat_to_match_shape(g, shape, dtype, axis, keepdims)
-#         argmax_locations = x == repeat_to_match_shape(ans, shape, dtype, axis, keepdims)[0]
-#         return g_repeated * argmax_locations / np.sum(argmax_locations, axis=axis, keepdims=True)
-#     return vjp
+def grad_chooser(ans, x, axis=None, keepdims=None):
+    shape, dtype = np.shape(x), np.result_type(x)
+    def vjp(g):
+        """Builds gradient of functions that choose a single item, such as min or max."""
+        g_repeated, _ = repeat_to_match_shape(g, shape, dtype, axis, keepdims)
+        argmax_locations = x == repeat_to_match_shape(ans, shape, dtype, axis, keepdims)[0]
+        return g_repeated * argmax_locations / np.sum(argmax_locations, axis=axis, keepdims=True)
+    return vjp
 
 def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
     data = np.max(t.data, axis=axis, keepdims=keepdims)
@@ -363,6 +392,7 @@ def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
             bool_array = t.data == np.max(t.data,keepdims=True,axis=axis)
             max_grad[bool_array] = 1 / bool_array.sum()
             return max_grad
+            # return grad_chooser(data, t.data, axis, keepdims)(grad)
         depends_on.append(Dependency(t, grad_fn))
     return Tensor(data, requires_grad, depends_on)
 
