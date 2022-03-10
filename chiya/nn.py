@@ -170,9 +170,7 @@ def _max_pool2d(x, ksize, stride=1):
     col = _im2col(x.data, ksize, stride)
     col_x = col.reshape(-1, np.prod(ksize))
     arg_max = np.argmax(col_x, axis=1)
-    print("argmax",arg_max.shape)
     out1 = np.max(col_x, axis=1)
-    print("out1",out1.shape)
     out2 = out1.reshape(N, out_h, out_w, C)
     out = np.transpose(out2, axes=(0,3,1,2))
     requires_grad = x.requires_grad
