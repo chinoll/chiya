@@ -8,12 +8,13 @@ from chiya import nn,Tensor,optim,utils
 from chiya import dataset as td
 np.random.seed(42)
 f = nn.Sequential(*[
-    nn.Conv2d(1,8,3,1),
+    nn.Conv2d(1,8,3,1,bias=False),
     nn.ReLU(),
-    nn.Conv2d(8,16,2,2),
-    nn.ReLU(),
+    nn.AvgPool2d(2,2),
+    # nn.Conv2d(8,16,2,2,bias=False),
+    # nn.ReLU(),
     nn.flatten(),
-    nn.linear(16*13*13,10),
+    nn.linear(8*13*13,10),
     nn.softmax()
 ])
 
@@ -24,7 +25,7 @@ def data_iter(x,y,batch_size=1):
         j = min(i+batch_size,m)
         yield x[idx[i:j]],y[idx[i:j]]
 
-def train(f,x,y,lr=0.001,epochs=500,batch_size=500):
+def train(f,x,y,lr=0.001,epochs=500,batch_size=1000):
     loss_list = []
     loss_func = nn.cross_entropy()
     optimizer = optim.Adam(lr)
@@ -36,8 +37,9 @@ def train(f,x,y,lr=0.001,epochs=500,batch_size=500):
             label = Tensor(label)
             F = f(xi)
             loss = loss_func(F,label)
-            loss.backward()
             print(loss)
+
+            loss.backward()
             optimizer.step(f)
             f.zero_grad()
             loss_list.append(loss.data)

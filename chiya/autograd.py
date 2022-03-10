@@ -1,6 +1,6 @@
 from typing import List, NamedTuple, Callable, Optional, Union
 import numpy as np
-
+from numba import jit
 #Part of the code comes from https://github.com/joelgrus/autograd
 class Dependency(NamedTuple):
     tensor: 'Tensor'
@@ -122,7 +122,10 @@ class Tensor:
         return _reshape(self,*shape)
     def flatten(self) -> 'Tensor':
         return self.reshape(self.shape[0],-1)
+    def pad(self,pad_width,mode='constant',constant_values=0):
+        return _pad(self,pad_width,mode,constant_values)
 
+    # @jit(forceobj=True)
     def backward(self, grad: 'Tensor' = None) -> None:
         assert self.requires_grad, "called backward on non-requires-grad tensor"
 
@@ -136,7 +139,6 @@ class Tensor:
         for dependency in self.depends_on:
             backward_grad = dependency.grad_fn(grad.data)
             dependency.tensor.backward(Tensor(backward_grad))
-
     def sum(self,axis=None,keepdims=False) -> 'Tensor':
         return tensor_sum(self,axis=axis,keepdims=keepdims)
 
@@ -358,28 +360,6 @@ def _slice(t: Tensor, idxs) -> Tensor:
 
     return Tensor(data, requires_grad, depends_on)
 
-def repeat_to_match_shape(g, shape, dtype, axis, keepdims):
-    """Returns the array g repeated along axis to fit vector space vs.
-       Also returns the number of repetitions of the array."""
-    if shape == ():
-      return g, 1
-    axis = list(axis) if isinstance(axis, tuple) else axis
-    new_shape = np.array(shape)
-    new_shape[axis] = 1
-    num_reps = np.prod(np.array(shape)[axis])
-    # Can't use broadcast_to because of numpy bug: https://github.com/numpy/numpy/issues/9165
-    # return anp.broadcast_to(anp.reshape(g, new_shape), shape), num_reps
-    return np.reshape(g, new_shape) + np.zeros(shape, dtype=dtype), num_reps
-
-def grad_chooser(ans, x, axis=None, keepdims=None):
-    shape, dtype = np.shape(x), np.result_type(x)
-    def vjp(g):
-        """Builds gradient of functions that choose a single item, such as min or max."""
-        g_repeated, _ = repeat_to_match_shape(g, shape, dtype, axis, keepdims)
-        argmax_locations = x == repeat_to_match_shape(ans, shape, dtype, axis, keepdims)[0]
-        return g_repeated * argmax_locations / np.sum(argmax_locations, axis=axis, keepdims=True)
-    return vjp
-
 def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
     data = np.max(t.data, axis=axis, keepdims=keepdims)
     requires_grad = t.requires_grad
@@ -387,12 +367,10 @@ def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
 
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
-            # This implementation may be wrong, but it is useful and can speed up convergence.
             max_grad = np.zeros_like(t.data)
             bool_array = t.data == np.max(t.data,keepdims=True,axis=axis)
             max_grad[bool_array] = 1 / bool_array.sum()
             return max_grad
-            # return grad_chooser(data, t.data, axis, keepdims)(grad)
         depends_on.append(Dependency(t, grad_fn))
     return Tensor(data, requires_grad, depends_on)
 
@@ -422,5 +400,24 @@ def _sqrt(t: Tensor) -> Tensor:
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
             return (grad*0.5)*(data**-0.5)
+        depends_on.append(Dependency(t, grad_fn))
+    return Tensor(data, requires_grad, depends_on)
+
+def _pad(t: Tensor, pad_width: List[int], mode: str = 'constant', constant_values: float = 0) -> Tensor:
+    data = np.pad(t.data, pad_width, mode, constant_values=constant_values)
+    requires_grad = t.requires_grad
+    depends_on: List[Dependency] = []
+    if requires_grad:
+        def grad_fn(grad: np.ndarray) -> np.ndarray:
+            if np.isscalar(pad_width):
+                pad_width = [[pad_width, pad_width]]
+            elif np.shape(pad_width) == (1,):
+                pad_width = [np.concatenate((pad_width, pad_width))]
+            elif np.shape(pad_width) == (2,):
+                pad_width = [pad_width]
+            if np.shape(pad_width)[0] == 1:
+                pad_width = np.repeat(pad_width, np.ndim(grad), 0)
+            idxs = tuple(slice(l, -u or None) for l, u in pad_width)
+            return grad[idxs]
         depends_on.append(Dependency(t, grad_fn))
     return Tensor(data, requires_grad, depends_on)
