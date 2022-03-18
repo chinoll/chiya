@@ -14,11 +14,9 @@ f = nn.Sequential(*[
     nn.ReLU(),
     nn.BatchNorm2d(16),
     nn.AvgPool2d(2,2),
-    # nn.Dropout(0.5),
     nn.flatten(),
     nn.linear(16*13*13,1024),
     nn.ReLU(),
-    # nn.Dropout(0.5),
     nn.linear(1024,10),
     nn.softmax()
 ])

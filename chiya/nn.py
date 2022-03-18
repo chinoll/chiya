@@ -352,7 +352,6 @@ class BatchNorm2d(Module):
             self.running_mean = self.momentum * self.running_mean + (1.0 - self.momentum) * mu
             self.running_var = self.momentum * self.running_var + (1.0 - self.momentum) * var
         else:
-            print("Not in training mode")
             mu = self.running_mean
             var = self.running_var
             norm_x = (x.data - mu) / np.sqrt(var + self.eps)
