@@ -43,7 +43,6 @@ def gen_mnist_dataset():
         test_image = load_images(f.read())
     with gzip.open("t10k-labels-idx1-ubyte.gz","rb") as f:
         test_label = load_labels(f.read())
-    print(train_label[:100])
     return (train_image,train_label),(test_image,test_label)
 
 def gen_fashion_dataset():

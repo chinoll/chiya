@@ -1,6 +1,7 @@
 import numpy as np
+from .autograd import Tensor
+
 def onehot(label,class_num):
-    # print(label.shape,label)
     one_hot = np.zeros((label.shape[0],class_num))
     one_hot[np.arange(label.shape[0]),label] = 1
     return one_hot
@@ -14,7 +15,7 @@ def data_iter(x,y,batch_size=1):
 
 def gradient_check(f,x,y,loss_func):
     xi = Tensor(x[0].reshape(1,1,28,28).astype(np.float32)/255)
-    label = Tensor(utils.onehot(y[:1],10))
+    label = Tensor(onehot(y[:1],10))
     F = f(xi)
     loss = loss_func(F,label)
     loss.backward()
