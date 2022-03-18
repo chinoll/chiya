@@ -6,6 +6,8 @@ import sys
 sys.path.append(utils.get_chiya_path())
 from chiya import nn,Tensor,optim,utils
 from chiya import dataset as td
+from scipy.interpolate import interp1d
+
 np.random.seed(42)
 f = nn.Sequential(*[
     nn.linear(784,200),
@@ -14,19 +16,12 @@ f = nn.Sequential(*[
     nn.softmax()
 ])
 
-def data_iter(x,y,batch_size=1):
-    m = len(x)
-    idx = np.arange(m)
-    for i in range(0,m,batch_size):
-        j = min(i+batch_size,m)
-        yield x[idx[i:j]],y[idx[i:j]]
-
 def train(f,x,y,lr=0.001,epochs=500,batch_size=1000):
     loss_list = []
     loss_func = nn.cross_entropy()
     optimizer = optim.Adam(lr)
     for _ in tqdm.tqdm(range(epochs)):
-        for xi,yi in data_iter(x,y,batch_size):
+        for xi,yi in utils.data_iter(x,y,batch_size):
             xi = xi.reshape(len(xi),-1).astype(np.float32)/255
             label = utils.onehot(yi,10)
             xi = Tensor(xi)
@@ -39,13 +34,18 @@ def train(f,x,y,lr=0.001,epochs=500,batch_size=1000):
             loss_list.append(loss.data)
     return loss_list
 
+epochs = 100
 (train_x,train_y),(test_x,test_y) = td.gen_mnist_dataset()
-loss_list = train(f,train_x,train_y,lr=0.001,epochs=100)
+loss_list = train(f,train_x,train_y,lr=0.001,epochs=epochs)
 test_x = Tensor(test_x,requires_grad=False)
 print("acc",np.mean(np.argmax(f(test_x).data,axis=1)==test_y))
 
-plt.plot([i for i in range(len(loss_list))],[i for i in loss_list],color='red',label='loss')
+x = np.arange(len(loss_list))
+y = np.array(loss_list)
+cubic_interploation_model=interp1d(x,y,kind="cubic")
+x = np.linspace(0,epochs,epochs)
+y = cubic_interploation_model(x)
+plt.plot(x,y,color='red',label='loss')
 plt.legend()
-
 plt.show()
 

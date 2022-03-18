@@ -48,7 +48,7 @@ class Tensor:
         self.grad = None
 
     def zero_grad(self) -> None:
-        self.grad = Tensor(np.zeros_like(self.data, dtype=np.float64))
+        self.grad = Tensor(np.zeros_like(self.data, dtype=np.float32))
 
     def __repr__(self) -> str:
         return f"Tensor({self.data}, requires_grad={self.requires_grad})"
@@ -60,9 +60,13 @@ class Tensor:
     # __raddr__ = __add__
     def __radd__(self, other) -> 'Tensor':
         """gets called if I do other + t"""
-        print("radd")
+        # print("radd")
+        if not isinstance(other, Tensor):
+            # print(type(other), other)
+            # return _add(other, self)
+            raise RuntimeError("radd only works with Tensors")
         tensor = _add(_ensure_tensor(other), self)
-        print(tensor)
+        # print(tensor)
         return tensor
 
     def __iadd__(self, other) -> 'Tensor':
@@ -127,6 +131,7 @@ class Tensor:
 
     # @jit(forceobj=True)
     def backward(self, grad: 'Tensor' = None) -> None:
+        # print("oh,fuck!",self)
         assert self.requires_grad, "called backward on non-requires-grad tensor"
 
         if grad is None:
@@ -134,10 +139,11 @@ class Tensor:
                 grad = Tensor(1.0)
             else:
                 raise RuntimeError("grad must be specified for non-0-tensor")
+        # print(type(self.grad.data),type(grad.data))
         self.grad.data = self.grad.data + grad.data  # type: ignore
-
         for dependency in self.depends_on:
             backward_grad = dependency.grad_fn(grad.data)
+            # print(isinstance(backward_grad,np.ndarray),dependency.grad_fn)
             dependency.tensor.backward(Tensor(backward_grad))
     def sum(self,axis=None,keepdims=False) -> 'Tensor':
         return tensor_sum(self,axis=axis,keepdims=keepdims)
@@ -158,7 +164,7 @@ def tensor_sum(t: Tensor,axis=None,keepdims=False) -> Tensor:
             grad is necessarily a 0-tensor, so each input element
             contributes that much
             """
-            return grad * np.ones_like(t.data)
+            return grad * np.ones_like(t.data,dtype=t.data.dtype)
 
         depends_on.append(Dependency(t, grad_fn))
 
@@ -350,7 +356,7 @@ def _slice(t: Tensor, idxs) -> Tensor:
 
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
-            bigger_grad = np.zeros_like(data)
+            bigger_grad = np.zeros_like(data,dtype=data.dtype)
             bigger_grad[idxs] = grad
             return bigger_grad
 
@@ -361,16 +367,19 @@ def _slice(t: Tensor, idxs) -> Tensor:
     return Tensor(data, requires_grad, depends_on)
 
 def _max(t: Tensor, axis=None, keepdims=False) -> Tensor:
-    data = np.max(t.data, axis=axis, keepdims=keepdims)
+    data = np.amax(t.data, axis=axis, keepdims=keepdims)
     requires_grad = t.requires_grad
     depends_on: List[Dependency] = []
 
     if requires_grad:
         def grad_fn(grad: np.ndarray) -> np.ndarray:
-            max_grad = np.zeros_like(t.data)
-            bool_array = t.data == np.max(t.data,keepdims=True,axis=axis)
-            max_grad[bool_array] = 1 / bool_array.sum()
-            return max_grad
+            mask = data == t.data
+            div = mask.sum(axis=axis, keepdims=keepdims)
+            return mask * grad / div
+            # max_grad = np.zeros_like(t.data,dtype=data.dtype)
+            # bool_array = t.data == np.max(t.data,keepdims=True,axis=axis)
+            # max_grad[bool_array] = 1 / bool_array.sum()
+            # return max_grad
         depends_on.append(Dependency(t, grad_fn))
     return Tensor(data, requires_grad, depends_on)
 
@@ -383,7 +392,7 @@ def _maximum(t1: Tensor, t2: Tensor) -> Tensor:
     depends_on: List[Dependency] = []
     if t1.requires_grad:
         def grad_fn1(grad: np.ndarray) -> np.ndarray:
-            return balanced_eq(data,t1.data, t2.data) * grad
+            return balanced_eq(data,t2.data, t1.data) * grad
         depends_on.append(Dependency(t1, grad_fn1))
 
     if t2.requires_grad:
@@ -408,7 +417,10 @@ def _pad(t: Tensor, pad_width: List[int], mode: str = 'constant', constant_value
     requires_grad = t.requires_grad
     depends_on: List[Dependency] = []
     if requires_grad:
+        # print(pad_width)
         def grad_fn(grad: np.ndarray) -> np.ndarray:
+            # print(pad_width)
+            nonlocal pad_width
             if np.isscalar(pad_width):
                 pad_width = [[pad_width, pad_width]]
             elif np.shape(pad_width) == (1,):
