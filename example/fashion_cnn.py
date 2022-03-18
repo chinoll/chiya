@@ -26,50 +26,13 @@ f = nn.Sequential(*[
     nn.Softmax(cross_entropy=True)
 ])
 
-def gradient_check(f,x,y,loss_func):
-    xi = Tensor(x[0].reshape(1,1,28,28).astype(np.float32)/255)
-    label = Tensor(utils.onehot(y[:1],10))
-    F = f(xi)
-    loss = loss_func(F,label)
-    loss.backward()
-
-    dreal = []
-    for i in f.parameters():
-        dreal.append(i.grad.data.reshape(-1))
-    dreal = np.concatenate(dreal)
-
-    print("start gradient check")
-    param = []
-    size = 0
-    for i in f.parameters():
-        param.append(i.data.copy().reshape(-1))
-        size += i.data.size
-    dapprox = np.zeros(size)
-    count = 0
-    print('param size:',size)
-    for ip,pp in zip(f.parameters(),param):
-        for j in range(ip.data.size):
-            a = pp.copy()
-            a[j] += 1e-7
-            ip.data.data = a.reshape(ip.shape).data
-            loss1 = loss_func(f(xi),label).data
-
-            a[j] -= 2*1e-7
-            ip.data.data = a.reshape(ip.shape).data
-            loss2 = loss_func(f(xi),label).data
-            dapprox[count] = (loss1-loss2)/1e-7/2
-            count += 1
-    diff = np.linalg.norm(dreal-dapprox)/(np.linalg.norm(dreal)+np.linalg.norm(dapprox))
-    print("gradient check:",diff)
-    f.zero_grad()
-
 def train(f,x,y,lr=0.001,epochs=500,batch_size=256):
     loss_list = []
     loss_func = nn.CrossEntropy()
     optimizer = optim.Adam(lr)
     for _ in tqdm.tqdm(range(epochs)):
         f.train()
-        # gradient_check(f,x,y,loss_func)
+        # utils.gradient_check(f,x,y,loss_func)
         for xi,yi in utils.data_iter(x,y,batch_size):
             xi = xi.reshape(len(xi),-1,28,28).astype(np.float32)/255
             label = utils.onehot(yi,10)
