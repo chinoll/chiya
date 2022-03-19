@@ -4,8 +4,11 @@ from typing import Iterator, Any, List
 import inspect
 from numba import njit
 
-@njit
+# @njit
 def _col2im(col, input_shape, filter_h, filter_w, stride, out_h, out_w):
+    """
+
+    """
     N, C, H, W = input_shape
     tmp1 = col.reshape(N, out_h, out_w, C, filter_h, filter_w)
     tmp2 = np.transpose(tmp1, axes=(0, 3, 4, 5, 1, 2))
@@ -17,7 +20,7 @@ def _col2im(col, input_shape, filter_h, filter_w, stride, out_h, out_w):
             img[:, :, i:i_max:stride, j:j_max:stride] += tmp2[:, :, i, j, :, :]
     return img[:, :, 0:H, 0:W]
 
-@njit
+# @njit
 def _im2col(img, kh,kw, stride=1):
     #b c h w -> b h w c
     img = img.copy().transpose(0, 2, 3, 1)
@@ -96,7 +99,6 @@ def Conv2d(x,kernel,bias,stride):
     out_h = (in_h - kh) // stride + 1
     out_w = (in_w - kw) // stride + 1
     depends_on: List[Dependency] = []
-
     col = _im2col(X, kh, kw, stride)
     W = kernel.data.reshape(outc,-1).T
     out = col @ W

@@ -102,6 +102,9 @@ class Sequential(Module):
         for layer in self.layers:
             layer.eval()
 
+def pad_image(img:np.ndarray,m:int,n:int)->np.ndarray:
+    return np.pad(img,((0,0),(0,0),(m,m),(n,n)),mode='constant',constant_values=0)
+
 class Conv2d(Module):
     def __init__(self,in_channels,out_channels,kernel_size,stride=1,padding=0,bias=True):
         super().__init__()
@@ -110,6 +113,7 @@ class Conv2d(Module):
         self.padding = padding
         self.bias = Parameter(np.zeros((1,out_channels)).astype('float32'),requires_grad=bias)
     def forward(self, x):
+        x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
         return F.Conv2d(x,self.kernel,self.bias,self.stride)
 
 class flatten(Module):

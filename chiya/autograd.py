@@ -1,6 +1,5 @@
 from typing import List, NamedTuple, Callable, Optional, Union
 import numpy as np
-from numba import jit
 #Part of the code comes from https://github.com/joelgrus/autograd
 class Dependency(NamedTuple):
     tensor: 'Tensor'
@@ -31,7 +30,7 @@ class Tensor:
         self._data = _ensure_array(data)
         self.requires_grad = requires_grad
         self.depends_on = depends_on or []
-        self.shape = self._data.shape
+        # self.shape = data.shape
         self.grad: Optional['Tensor'] = None
 
         if self.requires_grad:
@@ -40,6 +39,10 @@ class Tensor:
     @property
     def data(self) -> np.ndarray:
         return self._data
+
+    @property
+    def shape(self) -> List[int]:
+        return self._data.shape
 
     @data.setter
     def data(self, new_data: np.ndarray) -> None:
@@ -417,9 +420,7 @@ def _pad(t: Tensor, pad_width: List[int], mode: str = 'constant', constant_value
     requires_grad = t.requires_grad
     depends_on: List[Dependency] = []
     if requires_grad:
-        # print(pad_width)
         def grad_fn(grad: np.ndarray) -> np.ndarray:
-            # print(pad_width)
             nonlocal pad_width
             if np.isscalar(pad_width):
                 pad_width = [[pad_width, pad_width]]

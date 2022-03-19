@@ -9,7 +9,7 @@ from chiya import dataset as td
 
 np.random.seed(42)
 f = nn.Sequential(*[
-    nn.Conv2d(1,6,5,1,bias=True),
+    nn.Conv2d(1,6,5,1),
     nn.ReLU(),
     nn.MaxPool2d(2,2),
     nn.BatchNorm2d(6),
@@ -59,9 +59,6 @@ test_x = Tensor(test_x.reshape(-1,1,28,28).astype(np.float32)/255,requires_grad=
 print("acc",np.mean(np.argmax(f(test_x).data,axis=1)==test_y))
 y = np.array(loss_list)
 x = np.arange(len(y))
-# cubic_interploation_model=interp1d(x,y,kind="cubic")
-# x=np.linspace(0,epochs,epochs)
-# y = cubic_interploation_model(x)
 plt.plot(x,y,color='red',label='loss')
 plt.legend()
 plt.show()
