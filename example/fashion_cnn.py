@@ -11,6 +11,7 @@ np.random.seed(42)
 f = nn.Sequential(*[
     nn.Conv2d(1,6,5,1),
     nn.ReLU(),
+    nn.ReLU(),
     nn.MaxPool2d(2,2),
     nn.BatchNorm2d(6),
     nn.Conv2d(6,16,5,1),
@@ -30,9 +31,10 @@ def train(f,x,y,lr=0.001,epochs=500,batch_size=256):
     loss_list = []
     loss_func = nn.CrossEntropy()
     optimizer = optim.Adam(lr)
+    print(f)
     for _ in tqdm.tqdm(range(epochs)):
         f.train()
-        # utils.gradient_check(f,x,y,loss_func)
+        # print("gradient_check",utils.gradient_check(f,x,y,loss_func))
         for xi,yi in utils.data_iter(x,y,batch_size):
             xi = xi.reshape(len(xi),-1,28,28).astype(np.float32)/255
             label = utils.onehot(yi,10)

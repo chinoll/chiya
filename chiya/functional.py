@@ -6,45 +6,42 @@ from numba import njit
 
 # @njit
 def _col2im(col, input_shape, filter_h, filter_w, stride, out_h, out_w):
-    """
-
-    """
     N, C, H, W = input_shape
     tmp1 = col.reshape(N, out_h, out_w, C, filter_h, filter_w)
     tmp2 = np.transpose(tmp1, axes=(0, 3, 4, 5, 1, 2))
-    img = np.zeros((N, C, H + stride - 1, W + stride - 1)).astype('float32')
+    img = np.zeros((N, C, H + stride[0] - 1, W + stride[1] - 1)).astype('float32')
     for i in range(filter_h):
-        i_max = i + stride*out_h
+        i_max = i + stride[0] * out_h
         for j in range(filter_w):
-            j_max = j + stride*out_w
-            img[:, :, i:i_max:stride, j:j_max:stride] += tmp2[:, :, i, j, :, :]
+            j_max = j + stride[1] * out_w
+            img[:, :, i:i_max:stride[0], j:j_max:stride[1]] += tmp2[:, :, i, j, :, :]
     return img[:, :, 0:H, 0:W]
 
-# @njit
-def _im2col(img, kh,kw, stride=1):
+@njit
+def _im2col(img, kh, kw, stride):
     #b c h w -> b h w c
     img = img.copy().transpose(0, 2, 3, 1)
     N, H, W, C = img.shape
 
-    out_h = (H - kh) // stride + 1
-    out_w = (W - kw) // stride + 1
+    out_h = (H - kh) // stride[0] + 1
+    out_w = (W - kw) // stride[1] + 1
     col = np.empty((N * out_h * out_w, kh * kw * C),dtype=img.dtype)
     outsize = out_w * out_h
 
     for y in range(out_h):
-        y_min = y * stride
+        y_min = y * stride[0]
         y_max = y_min + kh
         y_start = y * out_w
         for x in range(out_w):
-            x_min = x * stride
+            x_min = x * stride[1]
             x_max = x_min + kw
             col[y_start+x::outsize, :] = img[:, y_min:y_max, x_min:x_max, :].copy().reshape(N, -1)
     return col
 
-def MaxPool2d(x, ksize, stride=1):
+def MaxPool2d(x, ksize, stride):
     N, C, H, W = x.shape
-    out_h = (H - ksize[0]) // stride + 1
-    out_w = (W - ksize[1]) // stride + 1
+    out_h = (H - ksize[0]) // stride[0] + 1
+    out_w = (W - ksize[1]) // stride[1] + 1
     col = _im2col(x.data, ksize[0],ksize[1], stride)
     col_x = col.reshape(-1, np.prod(ksize))
     arg_max = np.argmax(col_x, axis=1)
@@ -66,10 +63,10 @@ def MaxPool2d(x, ksize, stride=1):
         depends_on.append(Dependency(x, BackwardMaxPool2d))
     return Tensor(out,requires_grad,depends_on)
 
-def AvgPool2d(x, ksize, stride=1):
+def AvgPool2d(x, ksize, stride):
     N, C, H, W = x.shape
-    out_h = (H - ksize[0]) // stride + 1
-    out_w = (W - ksize[1]) // stride + 1
+    out_h = (H - ksize[0]) // stride[0] + 1
+    out_w = (W - ksize[1]) // stride[1] + 1
     col = _im2col(x.data, ksize[0],ksize[1], stride)
     col_x = col.reshape(-1, np.prod(ksize))
     out = np.mean(col_x, axis=1)
@@ -96,12 +93,16 @@ def Conv2d(x,kernel,bias,stride):
     outc,inc,kh,kw = kernel.shape
     X = x.data
     N, _, in_h, in_w = X.shape
-    out_h = (in_h - kh) // stride + 1
-    out_w = (in_w - kw) // stride + 1
+
+    out_h = (in_h - kh) // stride[0] + 1
+    out_w = (in_w - kw) // stride[1] + 1
+
     depends_on: List[Dependency] = []
+
     col = _im2col(X, kh, kw, stride)
     W = kernel.data.reshape(outc,-1).T
     out = col @ W
+
     if bias:
         B = bias.data.reshape(-1,outc)
         out += B
@@ -256,7 +257,7 @@ def Softmax(x,dim,cross_entropy):
 
 def Dropout(x,p,training):
     if not training:
-        return x * (1-p)
+        return x * (1-p) #使期望与训练时保持一致           
     if p == 0:
         return x
     else:

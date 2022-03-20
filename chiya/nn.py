@@ -37,50 +37,75 @@ class Module:
 
 class Linear(Module):
     def __init__(self,out_features,in_features=None,bias=True):
-        super().__init__()
+        super(Linear,self).__init__()
+
+        self.out_features = out_features
         if in_features == None:
             self.weight = None
-            self.out_features = out_features
+            self.in_features = None
         else:
+            self.in_features = in_features
             self.weight = Parameter(normal((in_features, out_features)),requires_grad=True)
         if bias:
             self.b = Parameter(np.zeros(out_features),requires_grad=True)
         else:
             self.b = None
 
+    def __repr__(self):
+        if self.in_features:
+            return f"Linear(in_features={self.out_features},out_features={self.weight.shape[1]})"
+        else:
+            return f"Linear(out_features={self.out_features})"
+
     def forward(self, inputs):
         if self.weight is None:
-            in_featues = np.prod(inputs.shape[1:])
-            self.weight = Parameter(normal((in_featues, self.out_features)),requires_grad=True)
+            in_features = np.prod(inputs.shape[1:])
+            self.in_features = in_features
+            self.weight = Parameter(normal((in_features, self.out_features)),requires_grad=True)
         return F.Linear(inputs,self.weight,self.b)
 
 class ReLU(Module):
     def __init__(self):
-        super().__init__()
+        super(ReLU,self).__init__()
+
+    def __repr__(self) -> str:
+        return f"ReLU()"
+
     def forward(self, inputs):
         return F.ReLU(inputs)
 
 class CrossEntropy(Module):
     def __init__(self):
-        super().__init__()
+        super(CrossEntropy,self).__init__()
+
+    def __repr__(self) -> str:
+        return "CrossEntropy()"
 
     def forward(self,y_pred,y):
         return F.CrossEntropy(y_pred,y)
 
 class Softmax(Module):
     def __init__(self, dim=-1,cross_entropy=False):
-        super().__init__()
+        super(Softmax,self).__init__()
 
         self.dim = dim
         self.n_in = None
         self.cross_entropy = cross_entropy
+
+    def __repr__(self) -> str:
+        return "Softmax()"
 
     def forward(self, X):
         return F.Softmax(X,self.dim,self.cross_entropy)
 
 class Sequential(Module):
     def __init__(self, *layers):
+        super(Sequential,self).__init__()
+
         self.layers = layers
+
+    def __repr__(self) -> str:
+        return 'Sequential(\n{}\n)'.format('\t'+', \n\t'.join(map(repr, self.layers)))
 
     def forward(self, x):
         for layer in self.layers:
@@ -102,44 +127,97 @@ class Sequential(Module):
         for layer in self.layers:
             layer.eval()
 
-def pad_image(img:np.ndarray,m:int,n:int)->np.ndarray:
-    return np.pad(img,((0,0),(0,0),(m,m),(n,n)),mode='constant',constant_values=0)
-
 class Conv2d(Module):
     def __init__(self,in_channels,out_channels,kernel_size,stride=1,padding=0,bias=True):
-        super().__init__()
-        self.kernel = Parameter(normal((out_channels,in_channels,kernel_size,kernel_size)).astype('float32'),requires_grad=True)
+        super(Conv2d,self).__init__()
+
+        if isinstance(kernel_size,int):
+            kernel_size = (kernel_size,kernel_size)
+        elif not isinstance(kernel_size,(tuple,list)):
+            raise TypeError("kernel_size must be int or tuple/list")
+
+        if isinstance(stride,int):
+            stride = (stride,stride)
+        elif not isinstance(stride,(tuple,list)):
+            raise TypeError("stride must be int or tuple/list")
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel = Parameter(normal((out_channels,in_channels,kernel_size[0],kernel_size[1])).astype('float32'),requires_grad=True)
         self.stride = stride
         self.padding = padding
+        self.kernel_size = kernel_size
         self.bias = Parameter(np.zeros((1,out_channels)).astype('float32'),requires_grad=bias)
+
+    def __repr__(self):
+        return f"Conv2d(in_channels={self.in_channels},out_channels={self.out_channels},kernel_size={self.kernel_size},stride={self.stride},padding={self.padding})"
+
     def forward(self, x):
-        x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
+        if self.padding:
+            x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
+
         return F.Conv2d(x,self.kernel,self.bias,self.stride)
 
 class flatten(Module):
+    def __repr__(self):
+        return f"flatten()"
+
     def forward(self,x):
         return x.reshape(x.shape[0],-1)
 
 class MaxPool2d(Module):
     def __init__(self, kernel_size, stride=1, padding=0, padding_mode='zero'):
-        super().__init__()
-        self.kernel_size = (kernel_size,kernel_size) if type(kernel_size) == int else kernel_size
+        super(MaxPool2d,self).__init__()
+
+        if isinstance(kernel_size,int):
+            kernel_size = (kernel_size,kernel_size)
+        elif not isinstance(kernel_size,(tuple,list)):
+            raise TypeError('kernel_size must be int or tuple/list')
+
+        if isinstance(stride,int):
+            stride = (stride,stride)
+        elif not isinstance(stride,(tuple,list)):
+            raise TypeError('stride must be int or tuple/list')
+
         self.stride = stride
         self.padding = padding
         self.padding_mode = padding_mode
+        self.kernel_size = kernel_size
+
+    def __repr__(self) -> str:
+        return f"MaxPool2d(kernel_size={self.kernel_size},stride={self.stride},padding={self.padding})"
 
     def forward(self, x):
+        if self.padding_mode == 'zero':
+            x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
+
         return F.MaxPool2d(x,self.kernel_size,self.stride)
 
 class AvgPool2d(Module):
     def __init__(self, kernel_size, stride=1, padding=0, padding_mode='zero'):
-        super().__init__()
-        self.kernel_size = (kernel_size,kernel_size) if type(kernel_size) == int else kernel_size
+        super(AvgPool2d,self).__init__()
+
+        if isinstance(kernel_size,int):
+            kernel_size = (kernel_size,kernel_size)
+        elif not isinstance(kernel_size,(tuple,list)):
+            raise TypeError('kernel_size must be int or tuple/list')
+
+        if isinstance(stride,int):
+            stride = (stride,stride)
+        elif not isinstance(stride,(tuple,list)):
+            raise TypeError('stride must be int or tuple/list')
+
         self.stride = stride
         self.padding = padding
         self.padding_mode = padding_mode
 
+    def __repr__(self) -> str:
+        return f"AvgPool2d(kernel_size={self.kernel_size},stride={self.stride},padding={self.padding})"
+
     def forward(self, x):
+        if self.padding_mode == 'zero':
+            x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
+
         return F.AvgPool2d(x,self.kernel_size,self.stride)
 
 class BatchNorm2d(Module):
@@ -151,6 +229,11 @@ class BatchNorm2d(Module):
         self.running_var = np.zeros((1,num_features,1,1),dtype=np.float32)
         self.beta = Parameter(np.zeros((1,num_features,1,1),dtype=np.float32),requires_grad=True)
         self.gamma = Parameter(np.ones((1,num_features,1,1),dtype=np.float32),requires_grad=True)
+        self.num_features = num_features
+
+    def __repr__(self) -> str:
+        return f"BatchNorm2d(num_features={self.num_features},eps={self.eps},momentum={self.momentum})"
+
     def forward(self,x):
         return F.BatchNorm2d(x,self.running_mean,self.running_var,self.beta,self.gamma,self.momentum,self.training,self.eps)
 
@@ -158,6 +241,10 @@ class Dropout(Module):
     def __init__(self,p=0.5):
         super(Dropout,self).__init__()
         self.p = p
+
+    def __repr__(self) -> str:
+        return f"Dropout(p={self.p})"
+
     def forward(self,x:Tensor) -> Tensor:
         return F.Dropout(x,self.p,self.training)
 
