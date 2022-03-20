@@ -154,5 +154,12 @@ class BatchNorm2d(Module):
     def forward(self,x):
         return F.BatchNorm2d(x,self.running_mean,self.running_var,self.beta,self.gamma,self.momentum,self.training,self.eps)
 
+class Dropout(Module):
+    def __init__(self,p=0.5):
+        super(Dropout,self).__init__()
+        self.p = p
+    def forward(self,x:Tensor) -> Tensor:
+        return F.Dropout(x,self.p,self.training)
+
 def normal(shape):
     return np.random.normal(size=shape)*0.001

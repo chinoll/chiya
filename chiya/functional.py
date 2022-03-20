@@ -253,3 +253,15 @@ def Softmax(x,dim,cross_entropy):
         depends_on.append(Dependency(x,BackwardSoftmax))
 
     return Tensor(Y,x.requires_grad,depends_on=depends_on)
+
+def Dropout(x,p,training):
+    if not training:
+        return x * (1-p)
+    if p == 0:
+        return x
+    else:
+        mask = np.random.binomial(1, 1-p, size=x.shape)
+        if x.requires_grad:
+            def BackwardDropout(grad:np.ndarray) -> np.ndarray:
+                return mask * grad
+        return Tensor(x.data * mask,requires_grad=x.requires_grad,depends_on=[Dependency(x,BackwardDropout)])
