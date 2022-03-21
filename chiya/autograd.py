@@ -48,7 +48,7 @@ class Tensor:
     def data(self, new_data: np.ndarray) -> None:
         self._data = new_data
         # Setting the data manually means we invalidate the gradient.
-        self.grad = None
+        self.zero_grad()
 
     def zero_grad(self) -> None:
         self.grad = Tensor(np.zeros_like(self.data, dtype=np.float32))
@@ -143,8 +143,10 @@ class Tensor:
             else:
                 raise RuntimeError("grad must be specified for non-0-tensor")
         # print(type(self.grad.data),type(grad.data))
+        # print(self.grad == None,grad == None)
         self.grad.data = self.grad.data + grad.data  # type: ignore
         for dependency in self.depends_on:
+            # print(dependency.grad_fn)
             backward_grad = dependency.grad_fn(grad.data)
             # print(isinstance(backward_grad,np.ndarray),dependency.grad_fn)
             dependency.tensor.backward(Tensor(backward_grad))

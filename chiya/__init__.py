@@ -5,3 +5,4 @@ from chiya import optim
 from chiya import autograd
 from .autograd import Tensor
 from chiya import functional
+from chiya import init

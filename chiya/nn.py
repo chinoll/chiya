@@ -3,6 +3,7 @@ import numpy as np
 from typing import Iterator, Any
 import inspect
 from . import functional as F
+from . import init
 
 class Parameter(Tensor):
     pass
@@ -32,6 +33,11 @@ class Module:
         for parameter in self.parameters():
             parameter.requires_grad = True
 
+    def apply(self, func: callable, *args: Any, **kwds: Any):
+        self.init_func = lambda x: func(x, *args, **kwds)
+        for i in self.parameters():
+            self.init_func(i)
+            # i.zero_grad()
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.forward(*args, **kwds)
 
@@ -45,11 +51,18 @@ class Linear(Module):
             self.in_features = None
         else:
             self.in_features = in_features
-            self.weight = Parameter(normal((in_features, out_features)),requires_grad=True)
+            self.weight = Parameter(np.empty((in_features, out_features)),requires_grad=True)
         if bias:
             self.b = Parameter(np.zeros(out_features),requires_grad=True)
         else:
             self.b = None
+
+    def apply(self, func: callable, *args: Any, **kwds: Any):
+        if self.weight is not None:
+            self.init_func(self.weight)
+            # self.weight.zero_grad()
+        else:
+            self.init_func = lambda x: func(x, *args, **kwds)
 
     def __repr__(self):
         if self.in_features:
@@ -61,7 +74,10 @@ class Linear(Module):
         if self.weight is None:
             in_features = np.prod(inputs.shape[1:])
             self.in_features = in_features
-            self.weight = Parameter(normal((in_features, self.out_features)),requires_grad=True)
+            self.weight = Parameter(np.empty((in_features, self.out_features)),requires_grad=True)
+            self.init_func(self.weight)
+            print("Linear: init weight")
+            print(self.weight.shape,self.b.shape,"linear")
         return F.Linear(inputs,self.weight,self.b)
 
 class ReLU(Module):
@@ -123,6 +139,10 @@ class Sequential(Module):
         for layer in self.layers:
             layer.train()
 
+    def apply(self, func: callable, *args: Any, **kwds: Any):
+        for layer in self.layers:
+            layer.apply(func, *args, **kwds)
+
     def eval(self):
         for layer in self.layers:
             layer.eval()
@@ -143,7 +163,7 @@ class Conv2d(Module):
 
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.kernel = Parameter(normal((out_channels,in_channels,kernel_size[0],kernel_size[1])).astype('float32'),requires_grad=True)
+        self.kernel = Parameter(np.empty((out_channels,in_channels,kernel_size[0],kernel_size[1])).astype('float32'),requires_grad=True)
         self.stride = stride
         self.padding = padding
         self.kernel_size = kernel_size
@@ -152,10 +172,14 @@ class Conv2d(Module):
     def __repr__(self):
         return f"Conv2d(in_channels={self.in_channels},out_channels={self.out_channels},kernel_size={self.kernel_size},stride={self.stride},padding={self.padding})"
 
+    def apply(self, func: callable, *args: Any, **kwds: Any):
+        func(self.kernel, *args, **kwds)
+
     def forward(self, x):
         if self.padding:
             x = x.pad(((0,0),(0,0),(self.padding,self.padding),(self.padding,self.padding)))
-
+        #print kernel and bias shape
+        # print(self.kernel.shape,self.bias.shape,"conv2d")
         return F.Conv2d(x,self.kernel,self.bias,self.stride)
 
 class flatten(Module):
@@ -234,6 +258,10 @@ class BatchNorm2d(Module):
     def __repr__(self) -> str:
         return f"BatchNorm2d(num_features={self.num_features},eps={self.eps},momentum={self.momentum})"
 
+    def apply(self, func: callable, *args: Any, **kwds: Any):
+        #不对gamma和beta初始化
+        pass
+
     def forward(self,x):
         return F.BatchNorm2d(x,self.running_mean,self.running_var,self.beta,self.gamma,self.momentum,self.training,self.eps)
 
@@ -247,6 +275,3 @@ class Dropout(Module):
 
     def forward(self,x:Tensor) -> Tensor:
         return F.Dropout(x,self.p,self.training)
-
-def normal(shape):
-    return np.random.normal(size=shape)*0.001
