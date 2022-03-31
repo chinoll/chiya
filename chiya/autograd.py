@@ -1,5 +1,7 @@
 from typing import List, NamedTuple, Callable, Optional, Union
 import numpy as np
+import copy
+
 #Part of the code comes from https://github.com/joelgrus/autograd
 class Dependency(NamedTuple):
     tensor: 'Tensor'
@@ -131,6 +133,11 @@ class Tensor:
         return self.reshape(self.shape[0],-1)
     def pad(self,pad_width,mode='constant',constant_values=0):
         return _pad(self,pad_width,mode,constant_values)
+
+    def detach(self):
+        ret = copy.deepcopy(self)
+        ret.requires_grad = False
+        return ret
 
     # @jit(forceobj=True)
     def backward(self, grad: 'Tensor' = None) -> None:
